@@ -30,6 +30,8 @@ typedef enum pid_state_e {
   ZOMBIE  /**< @brief The PID is held by a zombie */
 } pid_state;
 
+socket_cb* PORT_MAP[MAX_PORT];
+
 /**
   @brief Process Control Block.
 
@@ -60,7 +62,51 @@ typedef struct process_control_block {
 
   FCB* FIDT[MAX_FILEID];  /**< @brief The fileid table of the process */
 
+  FCB *fd[2];
+
+  rlnode ptcb_list;
+  int thread_count;
+
 } PCB;
+
+typedef enum socket_type_e{
+  SOCKET_LISTENER,
+  SOCKET_UNBOUND,
+  SOCKET_PEER
+}socket_type;
+
+typedef struct listener_socket{
+  rlnode queue;
+  CondVar req_available;
+}listener_socket;
+
+typedef struct unbound_socket{
+  rlnode unbound_socket;
+}unbound_socket;
+
+typedef struct peer_socket{
+  socket_cb* peer;
+  pipe_cb* write_pipe;
+  pipe_cb* read_pipe;
+}peer_socket;
+
+typedef struct socket_control_block {
+  uint refcount;
+  FCB *fcb;
+  socket_type type;
+  port_t port;
+  union{
+    listener_socket listener_s;
+    unbound_socket unbound_s;
+    peer_socket peer_s;
+  }
+
+}socket_cb;
+
+typedef struct procinfo_cb{
+  procinfo *procinfo_t;
+  int cursor;
+}procinfo_cb;
 
 
 /**

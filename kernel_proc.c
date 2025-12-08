@@ -44,6 +44,9 @@ static inline void initialize_PCB(PCB* pcb)
   rlnode_init(& pcb->children_node, pcb);
   rlnode_init(& pcb->exited_node, pcb);
   pcb->child_exit = COND_INIT;
+
+  rlnode_init(& pcb->ptcb_list, NULL);
+  pcb->thread_count=0;
 }
 
 
@@ -115,7 +118,7 @@ void release_PCB(PCB* pcb)
 void start_main_thread()
 {
   int exitval;
-
+  
   Task call =  CURPROC->main_task;
   int argl = CURPROC->argl;
   void* args = CURPROC->args;
@@ -178,7 +181,25 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     the initialization of the PCB.
    */
   if(call != NULL) {
+    PTCB *main_ptcb = (PTCB*)xmalloc(sizeof(PTCB));
+    main_ptcb->task=call;
+    main_ptcb->argl=argl;
+    main_ptcb->args=newproc->args;
+    main_ptcb->exitval=0;
+    main_ptcb->exited=0;
+    main_ptcb->detached=0;
+    main_ptcb->exit_cv=COND_INIT;
+    main_ptcb->refcount=0;
+    
     newproc->main_thread = spawn_thread(newproc, start_main_thread);
+    newproc->main_thread->ptcb = main_ptcb;
+    main_ptcb->tcb = newproc->main_thread;
+    
+    rlnode* node1=rlnode_init(&main_ptcb->ptcb_list_node,main_ptcb);
+    rlist_push_front(&newproc->ptcb_list,node1);
+
+    newproc->thread_count++;
+
     wakeup(newproc->main_thread);
   }
 
@@ -300,67 +321,36 @@ void sys_Exit(int exitval)
   if(get_pid(curproc)==1) {
 
     while(sys_WaitChild(NOPROC,NULL)!=NOPROC);
-
-  } else {
-
-    /* Reparent any children of the exiting process to the 
-       initial task */
-    PCB* initpcb = get_pcb(1);
-    while(!is_rlist_empty(& curproc->children_list)) {
-      rlnode* child = rlist_pop_front(& curproc->children_list);
-      child->pcb->parent = initpcb;
-      rlist_push_front(& initpcb->children_list, child);
-    }
-
-    /* Add exited children to the initial task's exited list 
-       and signal the initial task */
-    if(!is_rlist_empty(& curproc->exited_list)) {
-      rlist_append(& initpcb->exited_list, &curproc->exited_list);
-      kernel_broadcast(& initpcb->child_exit);
-    }
-
-    /* Put me into my parent's exited list */
-    rlist_push_front(& curproc->parent->exited_list, &curproc->exited_node);
-    kernel_broadcast(& curproc->parent->child_exit);
-
   }
 
-  assert(is_rlist_empty(& curproc->children_list));
-  assert(is_rlist_empty(& curproc->exited_list));
-
-
-  /* 
-    Do all the other cleanup we want here, close files etc. 
-   */
-
-  /* Release the args data */
-  if(curproc->args) {
-    free(curproc->args);
-    curproc->args = NULL;
-  }
-
-  /* Clean up FIDT */
-  for(int i=0;i<MAX_FILEID;i++) {
-    if(curproc->FIDT[i] != NULL) {
-      FCB_decref(curproc->FIDT[i]);
-      curproc->FIDT[i] = NULL;
-    }
-  }
-
-  /* Disconnect my main_thread */
-  curproc->main_thread = NULL;
-
-  /* Now, mark the process as exited. */
-  curproc->pstate = ZOMBIE;
-
-  /* Bye-bye cruel world */
-  kernel_sleep(EXITED, SCHED_USER);
+  sys_ThreadExit(exitval);
 }
 
+int procinfo_read(void* pipecb_t, char *buf, unsigned int n){
+  return -1;
+}
 
+int procinfo_close(void* _pipecb){
+  return -1;
+}
+
+static file_ops procinfo_ops = {
+  .Open = NULL,
+  .Read = procinfo_read,
+  .Write = NULL,
+  .Close = procinfo_close
+};
 
 Fid_t sys_OpenInfo()
 {
+  Fid_t fid;
+  FCB *fcb;
+  FCB_reserve(1,&fid,&fcb);
+  procinfo_cb *info_cb = (procinfo_cb*)xmalloc(sizeof(procinfo_cb));
+  procinfo *procfo = (procinfo*)xmalloc(sizeof(procinfo));
+  info_cb->procinfo_t=procfo;
+  fcb->streamobj=info_cb;
+  fcb->streamfunc=&procinfo_ops;
+  return fid;
 	return NOFILE;
 }
-
