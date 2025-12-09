@@ -17,6 +17,7 @@
 
 #include "tinyos.h"
 #include "kernel_sched.h"
+#include "kernel_streams.h"
 
 /**
   @brief PID state
@@ -30,7 +31,6 @@ typedef enum pid_state_e {
   ZOMBIE  /**< @brief The PID is held by a zombie */
 } pid_state;
 
-socket_cb* PORT_MAP[MAX_PORT];
 
 /**
   @brief Process Control Block.
@@ -69,6 +69,7 @@ typedef struct process_control_block {
 
 } PCB;
 
+
 typedef enum socket_type_e{
   SOCKET_LISTENER,
   SOCKET_UNBOUND,
@@ -99,9 +100,17 @@ typedef struct socket_control_block {
     listener_socket listener_s;
     unbound_socket unbound_s;
     peer_socket peer_s;
-  }
+  };
 
 }socket_cb;
+
+typedef struct Connection_Request_Listener{
+  int admitted;
+  socket_cb *peer;
+  
+  CondVar connected_cv;
+  rlnode queue_node;
+}connection_request;
 
 typedef struct procinfo_cb{
   procinfo *procinfo_t;
