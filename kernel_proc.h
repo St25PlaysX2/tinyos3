@@ -112,6 +112,11 @@ typedef struct Connection_Request_Listener{
   rlnode queue_node;
 }connection_request;
 
+int socket_read(void* socketcb_t, char *buf, unsigned int n);
+int socket_write(void* socketcb_t, const char *buf, unsigned int n);
+int socket_close(void* _sockcb);
+
+
 typedef struct procinfo_cb{
   procinfo *procinfo_t;
   int cursor;

@@ -50,7 +50,7 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n){
 
   pipe_cb* pipe = (pipe_cb*)pipecb_t;
 
-  if(pipe==NULL) return -1;
+  if(pipe==NULL||pipe->writer==NULL) return -1;
   if(pipe->reader==NULL) return -1;
   while(pipe->used_space==PIPE_BUFFER_SIZE && pipe->reader!=NULL) kernel_wait(&pipe->has_space, SCHED_IO);
 
@@ -74,7 +74,7 @@ int pipe_read(void* pipecb_t, char *buf, unsigned int n){
 
   pipe_cb* pipe = (pipe_cb*)pipecb_t;
 
-  if(pipe==NULL) return -1;
+  if(pipe==NULL||pipe->reader==NULL) return -1;
   while(pipe->used_space==0 && pipe->writer!=NULL) kernel_wait(&pipe->has_data, SCHED_IO);
 
   unsigned int count = 0;

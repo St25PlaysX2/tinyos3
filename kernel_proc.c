@@ -326,7 +326,8 @@ void sys_Exit(int exitval)
   sys_ThreadExit(exitval);
 }
 
-int procinfo_read(void* pipecb_t, char *buf, unsigned int n){
+int procinfo_read(void* info_cb, char *buf, unsigned int n){
+  //memcpy(buf,(char*)&info_cb->procinfo_t,sizeof(procinfo));
   return -1;
 }
 
@@ -345,12 +346,11 @@ Fid_t sys_OpenInfo()
 {
   Fid_t fid;
   FCB *fcb;
-  FCB_reserve(1,&fid,&fcb);
+  if(FCB_reserve(1,&fid,&fcb)) return NOFILE;
   procinfo_cb *info_cb = (procinfo_cb*)xmalloc(sizeof(procinfo_cb));
   procinfo *procfo = (procinfo*)xmalloc(sizeof(procinfo));
   info_cb->procinfo_t=procfo;
   fcb->streamobj=info_cb;
   fcb->streamfunc=&procinfo_ops;
   return fid;
-	return NOFILE;
 }
