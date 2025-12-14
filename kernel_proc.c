@@ -326,13 +326,37 @@ void sys_Exit(int exitval)
   sys_ThreadExit(exitval);
 }
 
-int procinfo_read(void* info_cb, char *buf, unsigned int n){
-  //memcpy(buf,(char*)&info_cb->procinfo_t,sizeof(procinfo));
-  return -1;
+int procinfo_read(void* infocb, char *buf, unsigned int n){
+  procinfo_cb *info_cb = (procinfo_cb*)infocb;
+  if(info_cb==NULL) return 0;
+  if(info_cb->cursor==NULL) return 0;
+  while (info_cb->cursor->pstate == FREE && info_cb->cursor != &PT[MAX_PROC]) info_cb->cursor++;
+  if(info_cb->cursor == &PT[MAX_PROC]) return 0;
+  if(info_cb->procinfo_t==NULL) return 0;
+
+  procinfo *info = info_cb->procinfo_t;
+
+  info->pid = get_pid(info_cb->cursor);
+	info->ppid = info_cb->cursor->parent ? get_pid(info_cb->cursor->parent) : NOPROC;
+  info->alive = info_cb->cursor->pstate==ALIVE ? 1 : 0;
+	info->thread_count = info_cb->cursor->thread_count;
+  info->main_task = info_cb->cursor->main_task;
+  info->argl = info_cb->cursor->argl;
+  if(info_cb->cursor->argl<PROCINFO_MAX_ARGS_SIZE){
+    memcpy(info->args,info_cb->cursor->args,info_cb->cursor->argl);
+  }else{
+    memcpy(info->args,info_cb->cursor->args,PROCINFO_MAX_ARGS_SIZE-1);
+  }
+  memcpy(buf,(char*)info,sizeof(procinfo));
+  info_cb->cursor++;
+  return sizeof(procinfo);
 }
 
-int procinfo_close(void* _pipecb){
-  return -1;
+int procinfo_close(void* infocb){
+  procinfo_cb *info_cb = (procinfo_cb*)infocb;
+  if(info_cb==NULL) return -1;
+  info_cb->procinfo_t=NULL;
+  return 0;
 }
 
 static file_ops procinfo_ops = {
@@ -346,10 +370,11 @@ Fid_t sys_OpenInfo()
 {
   Fid_t fid;
   FCB *fcb;
-  if(FCB_reserve(1,&fid,&fcb)) return NOFILE;
+  if(FCB_reserve(1,&fid,&fcb)==0) return NOFILE;
   procinfo_cb *info_cb = (procinfo_cb*)xmalloc(sizeof(procinfo_cb));
   procinfo *procfo = (procinfo*)xmalloc(sizeof(procinfo));
   info_cb->procinfo_t=procfo;
+  info_cb->cursor=PT+1;
   fcb->streamobj=info_cb;
   fcb->streamfunc=&procinfo_ops;
   return fid;

@@ -119,7 +119,7 @@ int socket_close(void* _sockcb);
 
 typedef struct procinfo_cb{
   procinfo *procinfo_t;
-  int cursor;
+  PCB* cursor;
 }procinfo_cb;
 
 

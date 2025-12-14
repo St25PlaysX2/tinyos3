@@ -2,7 +2,6 @@
 #include "tinyos.h"
 #include "kernel_proc.h"
 #include "kernel_cc.h"
-//#include "kernel_pipes.c"
 
 socket_cb* PORT_MAP[MAX_PORT+1];
 
